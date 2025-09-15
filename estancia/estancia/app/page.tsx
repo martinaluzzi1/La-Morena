@@ -1,4 +1,31 @@
 "use client";
+// page.tsx
+import Image from "next/image";
+
+// Nombres EXACTOS de tus archivos (con espacios)
+const GALLERY_NAMES = [
+  "estancia 1.jpg",
+  "estancia 2.jpg",
+  "estancia 3.jpg",
+  "estancia 4.jpg",
+  "estancia 5.jpg",
+  "estancia 6.jpg",
+  "estancia 7.jpg",
+  "estancia 8.jpg",
+  "estancia 9.jpg",
+  "estancia 10.jpg",
+  "estancia 11.jpg",
+  "estancia 12.jpg",
+  "estancia 13.jpg",
+  "estancia 14.jpg",
+  "estancia 15.jpg",
+  "estancia 16.jpg",
+  "estancia 17.jpg",
+];
+
+// Construyo las rutas a /public/fotos/… (con espacios)
+const GALLERY = GALLERY_NAMES.map((name) => `/fotos/${name}`);
+
 import Image from "next/image";
 import React, { useMemo, useState } from "react";
 import { CalendarDays, Mail, MapPin, Phone, Star, Users, Home, Sun, Trees, Snowflake, Sparkles, Wifi, Car, PawPrint, Mountain, Beef, Clock, ChevronRight, Loader2 } from "lucide-react";
@@ -432,16 +459,29 @@ export default function EstanciaLanding(){
       </section>
 
       {/* Galería */}
-      <section id="galeria" className="bg-white border-t">
-        <div className="mx-auto max-w-6xl px-4 py-12">
-          <h2 className="text-2xl md:text-3xl font-semibold">Galería</h2>
-          <div className="mt-6 grid sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {GALLERY.map((src, i)=> (
-              <img key={i} src={src} alt={`Foto ${i+1}`} className="rounded-2xl aspect-[4/3] object-cover"/>
-            ))}
-          </div>
+<section id="galeria" className="bg-white border-t">
+  <div className="mx-auto max-w-6xl px-4 py-12">
+    <h2 className="text-2xl md:text-3xl font-semibold">Galería</h2>
+
+    <div className="mt-6 grid sm:grid-cols-2 md:grid-cols-3 gap-4">
+      {GALLERY.map((rawSrc, i) => (
+        <div key={i} className="relative w-full aspect-[4/3] overflow-hidden rounded-2xl">
+          <Image
+            // encodeURI permite usar archivos con espacios
+            src={encodeURI(rawSrc)}
+            alt={`Foto ${i + 1}`}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover"
+            // Carga prioritaria de algunas para que se sienta ágil
+            priority={i < 3}
+          />
         </div>
-      </section>
+      ))}
+    </div>
+  </div>
+</section>
+
 
       {/* Cómo llegar */}
       <section id="como-llegar" className="mx-auto max-w-6xl px-4 py-12">
