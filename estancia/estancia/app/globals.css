@@ -1,0 +1,80 @@
+/* Tailwind v4 */
+@import "tailwindcss";
+
+/* 1) Variables HSL “crudas” (solo números) */
+:root {
+  --background: 50 20% 93%;
+  --foreground: 160 9% 10%;
+  --card: 50 20% 96%;
+  --card-foreground: 160 9% 12%;
+  --border: 160 10% 80%;
+  --input: 160 10% 80%;
+  --ring: 143 35% 32%;
+  --primary: 143 47% 24%;
+  --primary-foreground: 48 35% 96%;
+  --secondary: 143 22% 85%;
+  --secondary-foreground: 160 9% 15%;
+  --muted: 50 15% 90%;
+  --muted-foreground: 160 6% 35%;
+  --accent: 143 25% 82%;
+  --accent-foreground: 160 9% 15%;
+  --destructive: 2 76% 45%;
+  --destructive-foreground: 48 35% 96%;
+
+  --radius: 1rem;
+}
+
+/* 2) Mapear esas variables a tokens Tailwind con @theme */
+@theme {
+  /* tipografías (opcional) */
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+
+  /* colores semánticos (¡clave!) */
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  /* radios para utilidades como rounded-[--radius] */
+  --radius: var(--radius);
+}
+
+/* 3) Base */
+* { @apply border-border; }
+
+html, body { height: 100%; }
+
+body {
+  @apply bg-background text-foreground font-sans antialiased;
+}
+
+/* 4) Botones “default” rápidos (opcional, si no usás components) */
+.btn {
+  @apply inline-flex items-center gap-2 rounded-[--radius] px-4 py-2 text-sm font-medium
+         bg-primary text-primary-foreground hover:opacity-90 focus:outline-none
+         focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none;
+}
+.btn-secondary {
+  @apply bg-secondary text-secondary-foreground;
+}
+.btn-outline {
+  @apply border border-border bg-transparent text-foreground hover:bg-muted;
+}
+
+/* 5) Contenedor útil */
+.container {
+  @apply mx-auto w-full max-w-6xl px-4 md:px-6;
+}
