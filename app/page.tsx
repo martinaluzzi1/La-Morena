@@ -601,9 +601,11 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
                 </div>
 
                 {r.perks?.length ? (
-                  <ul className="mt-3 text-sm text-neutral-600 list-disc pl-5 space-y-1">
-                    {r.perks.map((p, i) => <li key={i}>{p}</li>)}
-                  </ul>
+                  <ul className="mt-4 grid md:grid-cols-2 gap-2 text-neutral-700 list-disc pl-6">
+                    {(ta("activities") || []).map((a: string, i: number) => (
+                        <li key={i}>{a}</li>
+                        ))}
+                    </ul>
                 ) : null}
 
                 <div className="mt-4">
@@ -858,18 +860,24 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         <div className="mx-auto max-w-6xl px-4 py-12">
           <h2 className="text-2xl md:text-3xl font-semibold">{t("testimonials.title")}</h2>
           <div className="mt-6 grid md:grid-cols-3 gap-6">
-            (ta("testimonials.items") || []).map((txt: string, i: number) => ( ... ))
-              <Card key={i} className="rounded-2xl">
-                <CardContent className="p-6">
-                  <div className="flex gap-1 text-amber-500">
-                    <Star className="size-4 fill-amber-500" /><Star className="size-4 fill-amber-500" /><Star className="size-4 fill-amber-500" /><Star className="size-4 fill-amber-500" /><Star className="size-4 fill-amber-500" />
-                  </div>
-                  <p className="mt-3">“{txt}”</p>
-                  <p className="mt-1 text-sm text-neutral-600">— {lang === "es" ? "Huésped verificado" : "Verified guest"}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+  {(ta("testimonials.items") || []).map((txt: string, i: number) => (
+    <Card key={i} className="rounded-2xl">
+      <CardContent className="p-6">
+        <div className="flex gap-1 text-amber-500">
+          <Star className="size-4 fill-amber-500" />
+          <Star className="size-4 fill-amber-500" />
+          <Star className="size-4 fill-amber-500" />
+          <Star className="size-4 fill-amber-500" />
+          <Star className="size-4 fill-amber-500" />
+        </div>
+        <p className="mt-3">“{txt}”</p>
+        <p className="mt-1 text-sm text-neutral-600">
+          — {lang === "es" ? "Huésped verificado" : "Verified guest"}
+        </p>
+      </CardContent>
+    </Card>
+  ))}
+</div>
         </div>
       </section>
 
