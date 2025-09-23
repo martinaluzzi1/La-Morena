@@ -374,7 +374,7 @@ const PHOTO_BASENAMES: string[] = [
 export default function EstanciaLanding() {
   const [lang, setLang] = useState<Lang>("es");
   const { t, ta, get } = useT(lang);
-  const L = (STRINGS as Record<Lang, typeof STRINGS.es>)[lang];
+const L = STRINGS[lang];
 
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
