@@ -225,6 +225,35 @@ function useT(lang: Lang) {
   return { t, ta, get };
 }
 
+/* ========== Imagen con fallback de extensiones (jpg/jpeg/png/webp) ========== */
+const CANDIDATE_EXTS = ["jpg","jpeg","png","webp","JPG","JPEG","PNG","WEBP"] as const;
+
+function FallbackImage({
+  base, // ej: "/suites/bradford1" sin extensión
+  alt,
+  className = "",
+}: { base: string; alt: string; className?: string }) {
+  const [idx, setIdx] = React.useState<number>(0);
+  const candidates = React.useMemo(() => CANDIDATE_EXTS.map(ext => `${base}.${ext}`), [base]);
+
+  return (
+    <img
+      src={encodeURI(candidates[idx]!)}
+      alt={alt}
+      className={className}
+      loading="lazy"
+      onError={() => {
+        setIdx((v) => (v < candidates.length - 1 ? v + 1 : v));
+      }}
+    />
+  );
+}
+
+/* Imagen de galería que busca dentro de /public/fotos */
+function GalleryImage({ base, className = "" }: { base: string; className?: string }) {
+  return <FallbackImage base={`/fotos/${base}`} alt={base} className={`w-full h-full object-cover ${className}`} />;
+}
+
 
 /* ===================== Carrusel simple ===================== */
 function Carousel({
@@ -634,7 +663,7 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
       <section className="mx-auto max-w-6xl px-4 py-12">
         <h2 className="text-2xl md:text-3xl font-semibold">{t("sections.actividades")}</h2>
         <ul className="mt-4 grid md:grid-cols-2 gap-2 text-neutral-700 list-disc pl-6">
-          {(ta("activities") || []).map((a, i) => (<li key={i}>{a}</li>))}
+        (ta("activities") || []).map((a: string, i: number) => (<li key={i}>{a}</li>))
         </ul>
       </section>
 
@@ -829,7 +858,7 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         <div className="mx-auto max-w-6xl px-4 py-12">
           <h2 className="text-2xl md:text-3xl font-semibold">{t("testimonials.title")}</h2>
           <div className="mt-6 grid md:grid-cols-3 gap-6">
-            {(ta("testimonials.items") || []).map((txt, i) => (
+            (ta("testimonials.items") || []).map((txt: string, i: number) => ( ... ))
               <Card key={i} className="rounded-2xl">
                 <CardContent className="p-6">
                   <div className="flex gap-1 text-amber-500">
