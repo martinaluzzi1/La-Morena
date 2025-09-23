@@ -374,11 +374,6 @@ const PHOTO_BASENAMES: string[] = [
   ...Array.from({ length: COMEDOR_COUNT }, (_, i) => `comedor${i + 1}`),
 ];
 
-function GalleryImage({ base, className = "" }: { base: string; className?: string }) {
-  // busca en /fotos
-  return <FallbackImage base={`/fotos/${base}`} alt={base} className={`w-full h-full object-cover ${className}`} />;
-}
-
 /* ===================== Página ===================== */
 export default function EstanciaLanding() {
   const [lang, setLang] = useState<Lang>("es");
@@ -601,11 +596,12 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
                 </div>
 
                 {r.perks?.length ? (
-                  <ul className="mt-4 grid md:grid-cols-2 gap-2 text-neutral-700 list-disc pl-6">
-                    {(ta("activities") || []).map((a: string, i: number) => (
-                        <li key={i}>{a}</li>
-                        ))}
-                    </ul>
+  <ul className="mt-3 text-sm text-neutral-600 list-disc pl-5 space-y-1">
+    {r.perks.map((p, i) => <li key={i}>{p}</li>)}
+  </ul>
+) : null}
+
+
                 ) : null}
 
                 <div className="mt-4">
@@ -665,8 +661,10 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
       <section className="mx-auto max-w-6xl px-4 py-12">
         <h2 className="text-2xl md:text-3xl font-semibold">{t("sections.actividades")}</h2>
         <ul className="mt-4 grid md:grid-cols-2 gap-2 text-neutral-700 list-disc pl-6">
-        (ta("activities") || []).map((a: string, i: number) => (<li key={i}>{a}</li>))
-        </ul>
+  {(ta("activities") || []).map((a: string, i: number) => (
+    <li key={i}>{a}</li>
+  ))}
+</ul>
       </section>
 
       {/* Eventos */}
