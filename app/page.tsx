@@ -188,48 +188,43 @@ const STRINGS = {
   },
 } as const;
 
+/* ===================== i18n helper SIN any ===================== */
 function useT(lang: Lang) {
-  function get(path: string) {
+  // camina un objeto por un path "a.b.c" sin usar "any"
+  const walk = (obj: unknown, key: string): unknown => {
+    if (obj && typeof obj === "object" && key in (obj as Record<string, unknown>)) {
+      return (obj as Record<string, unknown>)[key];
+    }
+    return undefined;
+  };
+
+  const get = (path: string): unknown => {
     const parts = path.split(".");
-    const val =
-      parts.reduce<any>((o, k) => (o ? o[k] : undefined), (STRINGS as any)[lang]) ??
-      parts.reduce<any>((o, k) => (o ? o[k] : undefined), (STRINGS as any).es);
-    return val;
-  }
-  function t(path: string, vars: Record<string, string | number> = {}) {
-    let val = get(path);
-    if (typeof val !== "string") return path;
-    return val.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ""));
-  }
-  function ta(path: string): string[] {
+    // 1) intenta en el idioma activo
+    let cur: unknown = (STRINGS as Record<string, unknown>)[lang];
+    for (const p of parts) cur = walk(cur, p);
+    if (cur !== undefined) return cur;
+
+    // 2) fallback al español
+    cur = (STRINGS as Record<string, unknown>)["es"];
+    for (const p of parts) cur = walk(cur, p);
+    return cur;
+  };
+
+  const t = (path: string, vars: Record<string, string | number> = {}) => {
+    const raw = get(path);
+    if (typeof raw !== "string") return path;
+    return raw.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ""));
+  };
+
+  const ta = (path: string): string[] => {
     const v = get(path);
-    if (Array.isArray(v)) return v;
-    return [];
-  }
+    return Array.isArray(v) ? (v as string[]) : [];
+  };
+
   return { t, ta, get };
 }
 
-/* ========== Imagen con fallback de extensiones (jpg/jpeg/png/webp) ========== */
-const CANDIDATE_EXTS = ["jpg","jpeg","png","webp","JPG","JPEG","PNG","WEBP"];
-
-function FallbackImage({
-  base, // ej: "/suites/bradford1" (sin extensión) o "/fotos/estancia5"
-  alt,
-  className = "",
-}: { base: string; alt: string; className?: string }) {
-  const [idx, setIdx] = React.useState(0);
-  const candidates = React.useMemo(() => CANDIDATE_EXTS.map(ext => `${base}.${ext}`), [base]);
-
-  return (
-    <img
-      src={encodeURI(candidates[idx])}
-      alt={alt}
-      className={className}
-      loading="lazy"
-      onError={() => { if (idx < candidates.length - 1) setIdx(idx + 1); }}
-    />
-  );
-}
 
 /* ===================== Carrusel simple ===================== */
 function Carousel({
