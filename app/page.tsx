@@ -18,10 +18,6 @@ import { toast } from "sonner";
 import Image from "next/image";
 import heroImg from "@/public/fotos/estancia1.jpg";
 
-
-
-
-
 /* ===================== i18n (ES/EN) ===================== */
 type Lang = "es" | "en";
 

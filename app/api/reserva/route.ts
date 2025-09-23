@@ -81,13 +81,15 @@ export async function POST(req: Request) {
     // Si todavía no verificaste dominio en Resend, usá "onboarding@resend.dev"
     const from = "La Morena <onboarding@resend.dev>";
 
-    const r = await resend.emails.send({
-      from,
-      to: ["estancialamorena0@gmail.com"], // ← tu casilla
-      reply_to: email, // para responder directo al huésped
-      subject,
-      html,
-    });
+    // ...
+const { data, error } = await resend.emails.send({
+  from,
+  to: ["estancialamorena0@gmail.com"], // tu casilla
+  replyTo: email,                      // ✅ camelCase
+  subject,
+  html,
+});
+
 
     // `r` está bien tipado por la SDK; chequeo defensivo:
     if ("error" in r && r.error) {
