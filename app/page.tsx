@@ -333,10 +333,10 @@ const ROOMS: Room[] = [
   { id: "suite-jersey", name: "Suite Jersey", base: 120000, cap: 4, photos: ["/suites/jersey1", "/suites/jersey2", "/suites/jersey3"] },
   { id: "suite-bonsmara", name: "Suite Bonsmara", base: 120000, cap: 4, photos: ["/suites/bonsmara1", "/suites/bonsmara2"] },
   { id: "suite-shorton", name: "Suite Shorton", base: 120000, cap: 4, photos: ["/suites/shorton1", "/suites/shorton2"] },
-  { id: "cab-1", name: "Cabaña 1", base: 140000, cap: 4, photos: ["/suites/jersey1", "/suites/jersey2"] },
-  { id: "cab-2", name: "Cabaña 2", base: 110000, cap: 2, photos: ["/suites/jersey1"] },
-  { id: "hostel-a", name: "Hostel A", base: 90000, cap: 6, photos: ["/suites/jersey1"] },
-  { id: "hostel-b", name: "Hostel B", base: 90000, cap: 6, photos: ["/suites/jersey1"] },
+  { id: "cab-1", name: "Cabaña 1", base: 140000, cap: 4, photos: ["/cabanas/cabana11", "/cabanas/cabana12", "/cabanas/cabana13", "/cabanas/cabana14", "/cabanas/cabana15", "/cabanas/cabana16", "/cabanas/cabana17"] },
+  { id: "cab-2", name: "Cabaña 2", base: 110000, cap: 2, photos: ["/cabanas/cabana12", "/cabanas/cabana13", "/cabanas/cabana14", "/cabanas/cabana15", "/cabanas/cabana16", "/cabanas/cabana17"] },
+  { id: "hostel-a", name: "Hostel A", base: 90000, cap: 6, photos: ["/hostel/hostela1", "/hostel/hostela2", "/hostel/hostela3", "/hostel/hostela4", "/hostel/hostela5", "/hostel/hostela6"] },
+  { id: "hostel-b", name: "Hostel B", base: 90000, cap: 6, photos: ["/hostel/hostelb1", "/hostel/hostelb2", "/hostel/hostelb3", "/hostel/hostelb4", "/hostel/hostelb6", "/hostel/hostelb8"] },
 ];
 
 /* Galería: 15 estancia, 6 confiteria, 8 comedor (bases sin extensión en /public/fotos) */
@@ -364,7 +364,7 @@ export default function EstanciaLanding() {
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [guests, setGuests] = useState(2);
-  const [roomId, setRoomId] = useState<string | null>(ROOMS[0].id);
+  const [roomId, setRoomId] = useState<string>(ROOMS[0].id);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -377,18 +377,65 @@ export default function EstanciaLanding() {
     return base + extra;
   }, [room, nights, guests]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!checkIn || !checkOut) {
-      toast.error(<div><div className="font-semibold">Oops</div><div>{L.booking.total.needDates}</div></div>);
+const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+
+  if (!checkIn || !checkOut) {
+    toast.error(
+      <div>
+        <div className="font-semibold">Oops</div>
+        <div>{L.booking.total.needDates}</div>
+      </div>
+    );
+    return;
+  }
+
+  setSubmitting(true);
+  try {
+    const form = new FormData(e.currentTarget);
+    const payload = {
+      nombre: form.get("nombre"),
+      email: form.get("email"),
+      whatsapp: form.get("whatsapp"),
+      website: form.get("website"), // honeypot
+      checkIn,
+      checkOut,
+      guests,
+      roomId,
+      notes,
+      total,
+    };
+
+    const res = await fetch("/api/reserva", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error("POST /api/reserva FAILED", res.status, txt);
+      toast.error(`Error ${res.status}: ${txt || "Bad response"}`);
+      setSubmitting(false);
       return;
     }
-    setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
-      toast(<div><div className="font-semibold">OK</div><div>{lang === "es" ? "Solicitud enviada." : "Request sent."}</div></div>);
-    }, 800);
-  };
+
+    toast(
+      <div>
+        <div className="font-semibold">OK</div>
+        <div>{lang === "es" ? "Solicitud enviada." : "Request sent."}</div>
+      </div>
+    );
+    // opcional: limpiar campos acá
+  } catch (err) {
+    console.error(err);
+    toast.error("Hubo un error. Probá de nuevo.");
+  } finally {
+    setSubmitting(false);
+  }
+};
+
+
 
   const baseStr = currency(room.base);
   const extraStr = currency(Math.max(0, guests - 2) * 12000);
@@ -632,10 +679,20 @@ export default function EstanciaLanding() {
               <form onSubmit={handleSubmit} className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>{t("booking.labels.checkin")}</Label><Input type="date" value={checkIn} onChange={e => setCheckIn(e.target.value)} required /></div>
                 <div className="space-y-2"><Label>{t("booking.labels.checkout")}</Label><Input type="date" value={checkOut} onChange={e => setCheckOut(e.target.value)} required /></div>
-                <div className="space-y-2"><Label>{t("booking.labels.guests")}</Label><Input type="number" min={1} max={12} value={guests} onChange={e => setGuests(parseInt(e.target.value || "1"))} /></div>
+               <div className="space-y-2">
+  <Label>{t("booking.labels.guests")}</Label>
+  <Input
+    type="number"
+    min={1}
+    max={12}
+    value={guests}
+    onChange={e => setGuests(Math.max(1, Number(e.target.value || 1)))}
+  />
+</div>
+
                 <div className="space-y-2">
                   <Label>{t("booking.labels.type")}</Label>
-                  <Select value={roomId ?? undefined} onValueChange={v => setRoomId(v)}>
+                  <Select value={roomId} onValueChange={setRoomId}>
                     <SelectTrigger className="w-full"><SelectValue placeholder={lang === "es" ? "Elegí una opción" : "Choose an option"} /></SelectTrigger>
                     <SelectContent>
                       {ROOMS.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
@@ -647,20 +704,52 @@ export default function EstanciaLanding() {
                   <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder={t("booking.placeholders.notes")} />
                 </div>
 
+                {/* 👇 Pegar DENTRO del <form>, antes del bloque total/submit */}
+<div className="space-y-2">
+  <Label>Nombre</Label>
+  <Input name="nombre" required />
+</div>
+<div className="space-y-2">
+  <Label>Email</Label>
+  <Input name="email" type="email" required />
+</div>
+<div className="space-y-2">
+  <Label>WhatsApp (opcional)</Label>
+  <Input name="whatsapp" placeholder="+54 9 ..." />
+</div>
+
+{/* Honeypot anti-bots (oculto) */}
+<input
+  type="text"
+  name="website"
+  className="hidden"
+  tabIndex={-1}
+  autoComplete="off"
+/>
+
+{/* (opcional) pasar roomId también por form */}
+<input type="hidden" name="roomId" value={roomId ?? ""} />
+
+
                 <div className="md:col-span-2 flex items-center justify-between gap-4">
-                  <div className="text-sm text-neutral-600">
-                    {nights > 0 ? (
-                      <>
-                        <div>{nights} {lang === "es" ? "noche(s)" : "night(s)"} · {room.name} · {guests} {lang === "es" ? "huésped(es)" : "guest(s)"}</div>
-                        <div className="font-medium">{t("booking.total.title")}: {currency(total)}</div>
-                        <div className="text-xs">{L.booking.total.includes(baseStr, extraStr)}</div>
-                      </>
-                    ) : <div>{t("booking.total.needDates")}</div>}
-                  </div>
-                  <Button type="submit" size="lg" className="rounded-2xl min-w-48" disabled={submitting}>
-                    {submitting ? (<><Loader2 className="size-4 animate-spin" /> {lang === "es" ? "Enviando…" : "Sending…"}</>) : (<>{t("booking.submit")} <ChevronRight className="size-4" /></>)}
-                  </Button>
-                </div>
+  <div className="text-sm text-neutral-600">
+    {nights > 0 ? (
+      <>
+        <div>
+          {nights} {lang === "es" ? "noche(s)" : "night(s)"} · {room.name} · {guests} {lang === "es" ? "huésped(es)" : "guest(s)"}
+        </div>
+        <div className="font-medium">{t("booking.total.title")}: {currency(total)}</div>
+        <div className="text-xs">{L.booking.total.includes(baseStr, extraStr)}</div>
+      </>
+    ) : (
+      <div>{t("booking.total.needDates")}</div>
+    )}
+  </div> {/* 👈 Cierre que faltaba */}
+
+  <Button type="submit" size="lg" className="rounded-2xl min-w-48" disabled={submitting}>
+    {submitting ? (<><Loader2 className="size-4 animate-spin" /> {lang === "es" ? "Enviando…" : "Sending…"}</>) : (<>{t("booking.submit")} <ChevronRight className="size-4" /></>)}
+  </Button>
+</div>
               </form>
             </CardContent>
           </Card>
