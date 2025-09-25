@@ -3,7 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays, Mail, MapPin, Phone, Star, Users, Home, Sun, Trees, Snowflake,
-  Sparkles, Wifi, Car, PawPrint, Mountain, Beef, Clock, ChevronRight, Loader2
+  Sparkles, Wifi, Car, PawPrint, Mountain, Beef, Clock, ChevronRight, Loader2,
+  Instagram, Facebook
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,6 +41,11 @@ const STRINGS = {
       como: "Cómo llegar",
       contacto: "¿Tenés dudas?",
       platos: "Gastronomía",
+      dejaComentario: "Dejá tu comentario",
+      tuNombre: "Tu nombre",
+      tuComentario: "Tu comentario",
+      tuPuntaje: "Puntaje",
+      enviarComentario: "Enviar comentario",
     },
     features: {
       wifi: "Wi-Fi rural",
@@ -93,9 +99,9 @@ const STRINGS = {
       ],
       incluye: { title: "Incluye", items: ["Desayuno de campo", "Ropa blanca y amenities", "Uso de bicis, kayaks y pileta"] },
       noIncluye: { title: "No incluye", items: ["Traslados", "Actividades guiadas especiales"] },
-      contactoDirecto: { title: "Contacto directo", horario: "9:00–18:00 (ARG)", nota: "También atendemos por Instagram y WhatsApp." },
+      contactoDirecto: { title: "Contacto directo", horario: "9:00–18:00 (ARG)"},
     },
-    testimonials: { title: "Lo que dicen los huéspedes", items: ["Increíble paz y atención.", "Volvemos todos los años.", "Desconexión total, super recomendable."] },
+    testimonials: { title: "Lo que dicen los huéspedes"},
     contact: { subtitle: "Escribinos y armamos tu escapada." },
     footer: { reservas: "Reservas", como: "Cómo llegar", contacto: "Contacto", derechos: "Todos los derechos reservados." },
   },
@@ -119,6 +125,11 @@ const STRINGS = {
       como: "Getting here",
       contacto: "Have questions?",
       platos: "Food",
+      dejaComentario: "Leave your comment",
+      tuNombre: "Your name",
+      tuComentario: "Your comment",
+      tuPuntaje: "Rating",
+      enviarComentario: "Send comment",
     },
     features: {
       wifi: "Rural Wi-Fi",
@@ -268,7 +279,7 @@ function Carousel({
   );
 }
 
-/* ===================== Carrusel para el HERO (auto cada 2s) ===================== */
+/* ===================== Carrusel para el HERO (auto) ===================== */
 function HeroCarousel({
   bases = [],
   alt = "Fondo",
@@ -295,7 +306,6 @@ function HeroCarousel({
           <FallbackImage base={b} alt={`${alt} — fondo ${idx + 1}`} className="w-full h-full object-cover" />
         </div>
       ))}
-      {/* capa oscura para legibilidad */}
       <div className="pointer-events-none absolute inset-0 bg-black/35" />
     </div>
   );
@@ -343,9 +353,7 @@ const ROOMS: Room[] = [
 ];
 
 /* ---------- FOTOS REALES: /public/fotos ---------- */
-/* Ajustá ESTE número a la cantidad real de 'estancia' que tengas */
 const ESTANCIA_COUNT = 12;
-/* Por tus capturas: fondo(1..2), verano(1..10), invierno(1..6), experiencias(1..8), evento(1..7), plato(1..7) */
 const range = (n: number, prefix: string) => Array.from({ length: n }, (_, i) => `/fotos/${prefix}${i + 1}`);
 
 const FOTOS = {
@@ -358,18 +366,40 @@ const FOTOS = {
   estancia:    range(ESTANCIA_COUNT, "estancia"),
 } as const;
 
+/* ======== Tipos para comentarios de huéspedes ======== */
+type Review = { name: string; rating: number; comment: string; date: string };
+const REVIEWS_KEY = "morena_reviews_v1";
+
 /* ===================== Página ===================== */
 export default function EstanciaLanding() {
   const [lang, setLang] = useState<Lang>("es");
   const { t, ta, get } = useT(lang);
   const L = STRINGS[lang];
 
+  // ====== Estado de reservas
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [guests, setGuests] = useState(2);
   const [roomId, setRoomId] = useState<string>(ROOMS[0].id);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // ====== Estado de comentarios
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [revName, setRevName] = useState("");
+  const [revRating, setRevRating] = useState<number>(5);
+  const [revComment, setRevComment] = useState("");
+
+  // cargar de localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(REVIEWS_KEY);
+      const parsed = raw ? (JSON.parse(raw) as Review[]) : [];
+      setReviews(parsed);
+    } catch {
+      setReviews([]);
+    }
+  }, []);
 
   const nights = useMemo(() => nightsBetween(checkIn, checkOut), [checkIn, checkOut]);
   const room = ROOMS.find(r => r.id === roomId) ?? ROOMS[0];
@@ -416,6 +446,34 @@ export default function EstanciaLanding() {
     }
   };
 
+  // agregar review
+  const addReview = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!revName.trim() || !revComment.trim()) {
+      toast.error(lang === "es" ? "Completá nombre y comentario." : "Please fill name and comment.");
+      return;
+    }
+    const newRev: Review = {
+      name: revName.trim(),
+      rating: Math.min(5, Math.max(1, Number(revRating))),
+      comment: revComment.trim(),
+      date: new Date().toISOString(),
+    };
+    const next = [newRev, ...reviews];
+    setReviews(next);
+    localStorage.setItem(REVIEWS_KEY, JSON.stringify(next));
+    setRevName("");
+    setRevRating(5);
+    setRevComment("");
+    toast.success(lang === "es" ? "¡Gracias por tu comentario!" : "Thanks for your review!");
+  };
+
+  // *** SIN comentarios por defecto: solo se muestran los reales ***
+  const avgRating =
+    reviews.length > 0
+      ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
+      : "—";
+
   const baseStr = currency(room.base);
   const extraStr = currency(Math.max(0, guests - 2) * 12000);
 
@@ -430,6 +488,7 @@ export default function EstanciaLanding() {
             <Home className="size-6" />
             <span className="font-semibold tracking-tight">{t("site")}</span>
           </div>
+
           <nav className="hidden md:flex items-center gap-6 text-sm">
             <a href="#alojamiento" className="hover:underline">{t("nav.alojamiento")}</a>
             <a href="#experiencias" className="hover:underline">{t("nav.experiencias")}</a>
@@ -437,7 +496,30 @@ export default function EstanciaLanding() {
             <a href="#como-llegar" className="hover:underline">{t("nav.como")}</a>
             <a href="#contacto" className="hover:underline">{t("nav.contacto")}</a>
           </nav>
-          <div className="flex items-center gap-2">
+
+          {/* Redes sociales + Reservar */}
+          <div className="flex items-center gap-3">
+            <a
+              href="https://instagram.com/tuusuario"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Instagram"
+              className="p-2 rounded-full hover:bg-neutral-100"
+              title="Instagram"
+            >
+              <Instagram className="size-5" />
+            </a>
+            <a
+              href="https://facebook.com/tuusuario"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Facebook"
+              className="p-2 rounded-full hover:bg-neutral-100"
+              title="Facebook"
+            >
+              <Facebook className="size-5" />
+            </a>
+
             <button
               onClick={() => setLang(l => (l === "es" ? "en" : "es"))}
               className="text-sm px-3 py-1 rounded-full border hover:bg-neutral-100"
@@ -477,7 +559,7 @@ export default function EstanciaLanding() {
               <a href="#galeria"><Button size="lg" variant="secondary" className="rounded-2xl">{t("hero.cta.galeria")}</Button></a>
             </div>
             <div className="mt-8 flex items-center gap-4 text-white/90">
-              <div className="flex items-center gap-1"><Star className="size-4 fill-white" /><span>4.9</span></div>
+              <div className="flex items-center gap-1"><Star className="size-4 fill-white" /><span>{avgRating}</span></div>
               <div className="hidden md:flex items-center gap-2"><Users className="size-4" /> {t("hero.meta.guests", { n: 12 })}</div>
               <div className="hidden md:flex items-center gap-2"><MapPin className="size-4" /> {t("hero.meta.location")}</div>
             </div>
@@ -618,7 +700,6 @@ export default function EstanciaLanding() {
               </CardContent>
             </Card>
 
-            {/* 👉 carrusel a la derecha con tus fotos de eventos */}
             <Card className="rounded-2xl overflow-hidden md:row-span-1">
               <CardContent className="p-0">
                 <Carousel bases={FOTOS.evento} alt="Eventos" aspect="aspect-[16/12]" />
@@ -680,30 +761,6 @@ export default function EstanciaLanding() {
         </div>
       </section>
 
-      {/* Testimonios */}
-      <section className="bg-white border-y">
-        <div className="mx-auto max-w-6xl px-4 py-12">
-          <h2 className="text-2xl md:text-3xl font-semibold">{t("testimonials.title")}</h2>
-        </div>
-        <div className="mx-auto max-w-6xl px-4 pb-12 grid md:grid-cols-3 gap-6">
-          {(ta("testimonials.items") || []).map((txt: string, i: number) => (
-            <Card key={i} className="rounded-2xl">
-              <CardContent className="p-6">
-                <div className="flex gap-1 text-amber-500">
-                  <Star className="size-4 fill-amber-500" />
-                  <Star className="size-4 fill-amber-500" />
-                  <Star className="size-4 fill-amber-500" />
-                  <Star className="size-4 fill-amber-500" />
-                  <Star className="size-4 fill-amber-500" />
-                </div>
-                <p className="mt-3">“{txt}”</p>
-                <p className="mt-1 text-sm text-neutral-600">— {lang === "es" ? "Huésped verificado" : "Verified guest"}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
-
       {/* Contacto */}
       <section id="contacto" className="mx-auto max-w-6xl px-4 py-12">
         <h2 className="text-2xl md:text-3xl font-semibold">{t("sections.contacto")}</h2>
@@ -713,7 +770,27 @@ export default function EstanciaLanding() {
             <CardContent className="p-6">
               <div className="flex items-center gap-2"><Phone className="size-5" /> <span>+54 9 2392 440994</span></div>
               <div className="flex items-center gap-2 mt-2"><Mail className="size-5" /> <span>estancialamorena0@gmail.com</span></div>
-              <p className="text-sm text-neutral-600 mt-3">{lang === "es" ? "También atendemos por Instagram y WhatsApp." : "We also reply via Instagram and WhatsApp."}</p>
+              <div className="flex items-center gap-3 mt-3">
+                <a
+                  href="https://instagram.com/tuusuario"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 hover:underline"
+                >
+                  <Instagram className="size-5" /> Instagram
+                </a>
+                <a
+                  href="https://facebook.com/tuusuario"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 hover:underline"
+                >
+                  <Facebook className="size-5" /> Facebook
+                </a>
+              </div>
+              <p className="text-sm text-neutral-600 mt-3">
+                {lang === "es" ? "También atendemos por Instagram y WhatsApp." : "We also reply via Instagram and WhatsApp."}
+              </p>
             </CardContent>
           </Card>
           <Card className="rounded-2xl">
@@ -729,15 +806,205 @@ export default function EstanciaLanding() {
         </div>
       </section>
 
+      {/* Reservas (lo dejo al final para los links del footer) */}
+      <section id="reservas" className="mx-auto max-w-6xl px-4 py-12">
+        <div className="grid lg:grid-cols-2 gap-8">
+          <Card className="rounded-2xl">
+            <CardContent className="p-6">
+              <h2 className="text-xl font-semibold">{t("booking.title")}</h2>
+              <p className="text-neutral-600 text-sm mt-1">{t("booking.subtitle")}</p>
+
+              <form onSubmit={handleSubmit} className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2"><Label>{t("booking.labels.checkin")}</Label><Input type="date" value={checkIn} onChange={e => setCheckIn(e.target.value)} required /></div>
+                <div className="space-y-2"><Label>{t("booking.labels.checkout")}</Label><Input type="date" value={checkOut} onChange={e => setCheckOut(e.target.value)} required /></div>
+                <div className="space-y-2"><Label>{t("booking.labels.guests")}</Label><Input type="number" min={1} max={12} value={guests} onChange={e => setGuests(Math.max(1, Number(e.target.value || 1)))} /></div>
+                <div className="space-y-2">
+                  <Label>{t("booking.labels.type")}</Label>
+                  <Select value={roomId} onValueChange={setRoomId}>
+                    <SelectTrigger className="w-full"><SelectValue placeholder={lang === "es" ? "Elegí una opción" : "Choose an option"} /></SelectTrigger>
+                    <SelectContent>{ROOMS.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 md:col-span-2"><Label>{t("booking.labels.notes")}</Label><Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder={t("booking.placeholders.notes")} /></div>
+
+                <div className="space-y-2"><Label>Nombre</Label><Input name="nombre" required /></div>
+                <div className="space-y-2"><Label>Email</Label><Input name="email" type="email" required /></div>
+                <div className="space-y-2"><Label>WhatsApp (opcional)</Label><Input name="whatsapp" placeholder="+54 9 ..." /></div>
+
+                <input type="text" name="website" className="hidden" tabIndex={-1} autoComplete="off" />
+                <input type="hidden" name="roomId" value={roomId ?? ""} />
+
+                <div className="md:col-span-2 flex items-center justify-between gap-4">
+                  <div className="text-sm text-neutral-600">
+                    {nights > 0 ? (
+                      <>
+                        <div>{nights} {lang === "es" ? "noche(s)" : "night(s)"} · {room.name} · {guests} {lang === "es" ? "huésped(es)" : "guest(s)"}</div>
+                        <div className="font-medium">{t("booking.total.title")}: {currency(total)}</div>
+                        <div className="text-xs">{L.booking.total.includes(baseStr, extraStr)}</div>
+                      </>
+                    ) : (<div>{t("booking.total.needDates")}</div>)}
+                  </div>
+                  <Button type="submit" size="lg" className="rounded-2xl min-w-48" disabled={submitting}>
+                    {submitting ? (<><Loader2 className="size-4 animate-spin" /> {lang === "es" ? "Enviando…" : "Sending…"}</>) : (<>{t("booking.submit")} <ChevronRight className="size-4" /></>)}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Lateral info */}
+          <div className="space-y-6">
+            <Card className="rounded-2xl">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-semibold">{t("booking.stepsTitle")}</h3>
+                <ol className="mt-2 text-sm text-neutral-700 list-decimal pl-5 space-y-1">
+                  {(ta("booking.steps") || []).map((s, i) => (<li key={i}>{s}</li>))}
+                </ol>
+              </CardContent>
+            </Card>
+            <Card className="rounded-2xl">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-semibold">{t("booking.incluye.title")}</h3>
+                <ul className="mt-2 text-sm text-neutral-700 list-disc pl-5 space-y-1">
+                  {(get("booking.incluye.items") as string[]).map((it, i) => (<li key={i}>{it}</li>))}
+                </ul>
+                <h3 className="text-lg font-semibold mt-4">{t("booking.noIncluye.title")}</h3>
+                <ul className="mt-2 text-sm text-neutral-700 list-disc pl-5 space-y-1">
+                  {(get("booking.noIncluye.items") as string[]).map((it, i) => (<li key={i}>{it}</li>))}
+                </ul>
+              </CardContent>
+            </Card>
+            <Card className="rounded-2xl">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-semibold">{t("booking.contactoDirecto.title")}</h3>
+                <div className="mt-3 space-y-2 text-sm">
+                  <a className="flex items-center gap-2 hover:underline" href="tel:+5492392440994"><Phone className="size-4" /> +54 9 2392 440994</a>
+                  <a className="flex items-center gap-2 hover:underline" href="mailto:estancialamorena0@gmail.com"><Mail className="size-4" /> estancialamorena0@gmail.com</a>
+                  <div className="flex items-center gap-2 text-neutral-600"><Clock className="size-4" /> {t("booking.contactoDirecto.horario")}</div>
+                  <div className="flex items-center gap-3">
+                    <a href="https://instagram.com/tuusuario" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 hover:underline">
+                      <Instagram className="size-4" /> Instagram
+                    </a>
+                    <a href="https://facebook.com/tuusuario" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 hover:underline">
+                      <Facebook className="size-4" /> Facebook
+                    </a>
+                  </div>
+                  <div className="text-neutral-600">{t("booking.contactoDirecto.nota")}</div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== Testimonios + Formulario (AHORA AL FINAL) ===== */}
+      <section className="bg-white border-y">
+        <div className="mx-auto max-w-6xl px-4 py-12">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+            <h2 className="text-2xl md:text-3xl font-semibold">{t("testimonials.title")}</h2>
+            <div className="text-sm text-neutral-600">
+              {lang === "es" ? "Puntaje promedio" : "Average rating"}:{" "}
+              <span className="font-medium">{avgRating} / 5</span> · {reviews.length}{" "}
+              {lang === "es" ? "opiniones" : "reviews"}
+            </div>
+          </div>
+        </div>
+
+        <div className="mx-auto max-w-6xl px-4 pb-12 grid lg:grid-cols-3 gap-6">
+          {/* Cards de reviews */}
+          <div className="lg:col-span-2 grid md:grid-cols-2 gap-6">
+            {reviews.map((r, i) => (
+              <Card key={i} className="rounded-2xl">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="font-medium">{r.name}</div>
+                    <div className="flex gap-1 text-amber-500" aria-label={`${r.rating} estrellas`}>
+                      {Array.from({ length: 5 }).map((_, idx) => (
+                        <Star key={idx} className={`size-4 ${idx < r.rating ? "fill-amber-500" : ""}`} />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="mt-3">{`“${r.comment}”`}</p>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    {new Date(r.date).toLocaleDateString(lang === "es" ? "es-AR" : "en-US")}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+            {reviews.length === 0 && (
+              <div className="text-sm text-neutral-600 md:col-span-2">
+                {lang === "es" ? "Todavía no hay comentarios. ¡Sé la primera persona en dejar uno!" : "No reviews yet. Be the first to leave one!"}
+              </div>
+            )}
+          </div>
+
+          {/* Formulario para dejar comentario */}
+          <Card className="rounded-2xl">
+            <CardContent className="p-6">
+              <h3 className="text-lg font-semibold">{t("sections.dejaComentario")}</h3>
+              <form className="mt-4 space-y-3" onSubmit={addReview}>
+                <div className="space-y-1">
+                  <Label htmlFor="revName">{t("sections.tuNombre")}</Label>
+                  <Input id="revName" value={revName} onChange={e => setRevName(e.target.value)} required />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="revRating">{t("sections.tuPuntaje")}</Label>
+                  <Select value={String(revRating)} onValueChange={(v) => setRevRating(Number(v))}>
+                    <SelectTrigger id="revRating" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[5,4,3,2,1].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="revComment">{t("sections.tuComentario")}</Label>
+                  <Textarea id="revComment" rows={4} value={revComment} onChange={e => setRevComment(e.target.value)} required />
+                </div>
+                <Button type="submit" className="rounded-2xl w-full">{t("sections.enviarComentario")}</Button>
+                <p className="text-xs text-neutral-500">
+                  {lang === "es"
+                    ? "Al enviar aceptás que mostremos tu nombre y comentario en esta página (no se publica tu email)."
+                    : "By submitting you agree we may show your name and comment on this page (your email is not published)."}
+                </p>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="border-t bg-white">
         <div className="mx-auto max-w-6xl px-4 py-10 text-sm text-neutral-600">
           <div className="flex flex-col md:flex-row gap-6 md:items-center md:justify-between">
-            <div className="flex items-center gap-2 text-neutral-800"><Home className="size-5" /> Estancia La Morena</div>
-            <div className="flex gap-4">
+            <div className="flex items-center gap-2 text-neutral-800">
+              <Home className="size-5" /> Estancia La Morena
+            </div>
+            <div className="flex items-center gap-6">
               <a className="hover:underline" href="#reservas">{L.footer.reservas}</a>
               <a className="hover:underline" href="#como-llegar">{L.footer.como}</a>
               <a className="hover:underline" href="#contacto">{L.footer.contacto}</a>
+              <a
+                href="https://instagram.com/tuusuario"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 hover:opacity-80"
+                aria-label="Instagram"
+                title="Instagram"
+              >
+                <Instagram className="size-4" /> Instagram
+              </a>
+              <a
+                href="https://facebook.com/tuusuario"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 hover:opacity-80"
+                aria-label="Facebook"
+                title="Facebook"
+              >
+                <Facebook className="size-4" /> Facebook
+              </a>
             </div>
           </div>
           <div className="mt-4">© {new Date().getFullYear()} Estancia La Morena. {L.footer.derechos}</div>
