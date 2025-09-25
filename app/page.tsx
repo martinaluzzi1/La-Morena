@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays, Mail, MapPin, Phone, Star, Users, Home, Sun, Trees, Snowflake,
   Sparkles, Wifi, Car, PawPrint, Mountain, Beef, Clock, ChevronRight, Loader2
@@ -15,8 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
-import Image from "next/image";
-import heroImg from "@/public/fotos/estancia1.jpg";
 
 /* ===================== i18n (ES/EN) ===================== */
 type Lang = "es" | "en";
@@ -24,7 +22,7 @@ type Lang = "es" | "en";
 const STRINGS = {
   es: {
     site: "Estancia La Morena",
-    nav: { alojamiento: "Alojamiento", experiencias: "Experiencias", galeria: "Galería", como: "Cómo llegar", contacto: "Contacto", reservar: "Reservar" },
+    nav: { alojamiento: "Alojamiento", experiencias: "Actividades y eventos", galeria: "Galería", como: "Cómo llegar", contacto: "Contacto", reservar: "Reservar" },
     hero: {
       title: "Descanso de campo,\na pocas horas de la ciudad",
       subtitle: "Naturaleza, confort y experiencias auténticas en una estancia boutique.",
@@ -41,6 +39,7 @@ const STRINGS = {
       galeria: "Galería",
       como: "Cómo llegar",
       contacto: "¿Tenés dudas?",
+      platos: "Gastronomía",
     },
     features: {
       wifi: "Wi-Fi rural",
@@ -78,9 +77,7 @@ const STRINGS = {
         type: "Tipo de alojamiento",
         notes: "Comentarios",
       },
-      placeholders: {
-        notes: "¿Necesitás cuna, late check-out, dieta especial?",
-      },
+      placeholders: { notes: "¿Necesitás cuna, late check-out, dieta especial?" },
       total: {
         needDates: "Elegí fechas para ver el total estimado.",
         title: "Total estimado",
@@ -121,6 +118,7 @@ const STRINGS = {
       galeria: "Gallery",
       como: "Getting here",
       contacto: "Have questions?",
+      platos: "Food",
     },
     features: {
       wifi: "Rural Wi-Fi",
@@ -158,9 +156,7 @@ const STRINGS = {
         type: "Room type",
         notes: "Notes",
       },
-      placeholders: {
-        notes: "Need a crib, late check-out, special diet?",
-      },
+      placeholders: { notes: "Need a crib, late check-out, special diet?" },
       total: {
         needDates: "Pick dates to see the estimated total.",
         title: "Estimated total",
@@ -184,90 +180,71 @@ const STRINGS = {
   },
 } as const;
 
-/* ===================== i18n helper SIN any ===================== */
+/* ===================== i18n helper ===================== */
 function useT(lang: Lang) {
-  // camina un objeto por un path "a.b.c" sin usar "any"
   const walk = (obj: unknown, key: string): unknown => {
     if (obj && typeof obj === "object" && key in (obj as Record<string, unknown>)) {
       return (obj as Record<string, unknown>)[key];
     }
     return undefined;
   };
-
   const get = (path: string): unknown => {
     const parts = path.split(".");
-    // 1) intenta en el idioma activo
     let cur: unknown = (STRINGS as Record<string, unknown>)[lang];
     for (const p of parts) cur = walk(cur, p);
     if (cur !== undefined) return cur;
-
-    // 2) fallback al español
     cur = (STRINGS as Record<string, unknown>)["es"];
     for (const p of parts) cur = walk(cur, p);
     return cur;
   };
-
   const t = (path: string, vars: Record<string, string | number> = {}) => {
     const raw = get(path);
     if (typeof raw !== "string") return path;
     return raw.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ""));
   };
-
   const ta = (path: string): string[] => {
     const v = get(path);
     return Array.isArray(v) ? (v as string[]) : [];
   };
-
   return { t, ta, get };
 }
 
-/* ========== Imagen con fallback de extensiones (jpg/jpeg/png/webp) ========== */
+/* ========== Imagen con fallback de extensión ========== */
 const CANDIDATE_EXTS = ["jpg","jpeg","png","webp","JPG","JPEG","PNG","WEBP"] as const;
 
-function FallbackImage({
-  base, // ej: "/suites/bradford1" sin extensión
-  alt,
-  className = "",
-}: { base: string; alt: string; className?: string }) {
-  const [idx, setIdx] = React.useState<number>(0);
+function FallbackImage({ base, alt, className = "" }: { base: string; alt: string; className?: string }) {
+  const [idx, setIdx] = useState<number>(0);
   const candidates = React.useMemo(() => CANDIDATE_EXTS.map(ext => `${base}.${ext}`), [base]);
-
   return (
     <img
       src={encodeURI(candidates[idx]!)}
       alt={alt}
       className={className}
       loading="lazy"
-      onError={() => {
-        setIdx((v) => (v < candidates.length - 1 ? v + 1 : v));
-      }}
+      onError={() => setIdx(v => (v < candidates.length - 1 ? v + 1 : v))}
     />
   );
 }
 
-/* Imagen de galería que busca dentro de /public/fotos */
-function GalleryImage({ base, className = "" }: { base: string; className?: string }) {
-  return <FallbackImage base={`/fotos/${base}`} alt={base} className={`w-full h-full object-cover ${className}`} />;
-}
-
-
-/* ===================== Carrusel simple ===================== */
+/* ===================== Carrusel genérico (manual) ===================== */
 function Carousel({
-  bases, // array de "bases" sin extensión
+  bases = [],
   alt,
   aspect = "aspect-[4/3]",
-}: { bases: string[]; alt: string; aspect?: string }) {
-  const [i, setI] = React.useState(0);
-  const count = bases.length || 0;
+  rounded = "rounded-2xl",
+}: { bases?: string[]; alt: string; aspect?: string; rounded?: string }) {
+  const [i, setI] = useState(0);
+  const list = Array.isArray(bases) ? bases : [];
+  const count = list.length;
   if (!count) return null;
 
   const prev = () => setI(v => (v - 1 + count) % count);
   const next = () => setI(v => (v + 1) % count);
 
   return (
-    <div className="relative w-full overflow-hidden rounded-2xl bg-neutral-200">
+    <div className={`relative w-full overflow-hidden ${rounded} bg-neutral-200`}>
       <div className={`relative ${aspect}`}>
-        {bases.map((b, idx) => (
+        {list.map((b, idx) => (
           <div
             key={idx}
             className={`absolute inset-0 transition-opacity duration-500 ${idx === i ? "opacity-100" : "opacity-0"}`}
@@ -276,38 +253,50 @@ function Carousel({
           </div>
         ))}
       </div>
-
       {count > 1 && (
         <>
-          <button
-            type="button"
-            onClick={prev}
-            aria-label="Anterior"
-            className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 hover:bg-white px-3 py-2 shadow"
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            onClick={next}
-            aria-label="Siguiente"
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 hover:bg-white px-3 py-2 shadow"
-          >
-            ›
-          </button>
-
+          <button type="button" onClick={prev} aria-label="Anterior" className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 hover:bg-white px-3 py-2 shadow">‹</button>
+          <button type="button" onClick={next} aria-label="Siguiente" className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/80 hover:bg-white px-3 py-2 shadow">›</button>
           <div className="absolute bottom-2 inset-x-0 flex justify-center gap-1">
-            {bases.map((_, idx) => (
-              <button
-                key={idx}
-                aria-label={`Ir a foto ${idx + 1}`}
-                onClick={() => setI(idx)}
-                className={`h-2 w-2 rounded-full ${idx === i ? "bg-white" : "bg-white/50"}`}
-              />
+            {list.map((_, idx) => (
+              <button key={idx} aria-label={`Ir a foto ${idx + 1}`} onClick={() => setI(idx)} className={`h-2 w-2 rounded-full ${idx === i ? "bg-white" : "bg-white/50"}`} />
             ))}
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/* ===================== Carrusel para el HERO (auto cada 2s) ===================== */
+function HeroCarousel({
+  bases = [],
+  alt = "Fondo",
+  autoMs = 5000,
+}: { bases?: string[]; alt?: string; autoMs?: number }) {
+  const [i, setI] = useState(0);
+  const count = bases.length;
+
+  useEffect(() => {
+    if (count < 2) return;
+    const id = setInterval(() => setI(v => (v + 1) % count), autoMs);
+    return () => clearInterval(id);
+  }, [count, autoMs]);
+
+  if (!count) return null;
+
+  return (
+    <div className="relative h-[70vh] md:h-[80vh]">
+      {bases.map((b, idx) => (
+        <div
+          key={idx}
+          className={`absolute inset-0 transition-opacity duration-700 ${idx === i ? "opacity-100" : "opacity-0"}`}
+        >
+          <FallbackImage base={b} alt={`${alt} — fondo ${idx + 1}`} className="w-full h-full object-cover" />
+        </div>
+      ))}
+      {/* capa oscura para legibilidad */}
+      <div className="pointer-events-none absolute inset-0 bg-black/35" />
     </div>
   );
 }
@@ -327,6 +316,7 @@ const nightsBetween = (inStr: string, outStr: string) => {
 /* ===================== Datos ===================== */
 const LOCATION = "San José del Morro, San Luis, Argentina";
 
+/* Iconos de features */
 const FEATURE_KEYS = [
   { icon: Wifi, key: "wifi" },
   { icon: Beef, key: "cocina" },
@@ -336,15 +326,8 @@ const FEATURE_KEYS = [
   { icon: Car, key: "parking" },
 ] as const;
 
-type Room = {
-  id: string;
-  name: string;
-  base: number;
-  cap: number;
-  photos: string[]; // bases sin extensión bajo /public
-  perks?: string[];
-};
-
+/* Habitaciones (igual que antes) */
+type Room = { id: string; name: string; base: number; cap: number; photos: string[]; perks?: string[]; };
 const ROOMS: Room[] = [
   { id: "suite-bradford", name: "Suite Bradford", base: 120000, cap: 4, photos: ["/suites/bradford1", "/suites/bradford2", "/suites/bradford3", "/suites/bradford4", "/suites/bradford5"] },
   { id: "suite-charolais", name: "Suite Charolais", base: 120000, cap: 4, photos: ["/suites/charolais1", "/suites/charolais2", "/suites/charolais3", "/suites/charolais4"] },
@@ -359,22 +342,27 @@ const ROOMS: Room[] = [
   { id: "hostel-b", name: "Hostel B", base: 90000, cap: 6, photos: ["/hostel/hostelb1", "/hostel/hostelb2", "/hostel/hostelb3", "/hostel/hostelb4", "/hostel/hostelb6", "/hostel/hostelb8"] },
 ];
 
-/* Galería: 15 estancia, 6 confiteria, 8 comedor (bases sin extensión en /public/fotos) */
-const ESTANCIA_COUNT = 15;
-const CONFITERIA_COUNT = 6;
-const COMEDOR_COUNT = 8;
+/* ---------- FOTOS REALES: /public/fotos ---------- */
+/* Ajustá ESTE número a la cantidad real de 'estancia' que tengas */
+const ESTANCIA_COUNT = 12;
+/* Por tus capturas: fondo(1..2), verano(1..10), invierno(1..6), experiencias(1..8), evento(1..7), plato(1..7) */
+const range = (n: number, prefix: string) => Array.from({ length: n }, (_, i) => `/fotos/${prefix}${i + 1}`);
 
-const PHOTO_BASENAMES: string[] = [
-  ...Array.from({ length: ESTANCIA_COUNT }, (_, i) => `estancia${i + 1}`),
-  ...Array.from({ length: CONFITERIA_COUNT }, (_, i) => `confiteria${i + 1}`),
-  ...Array.from({ length: COMEDOR_COUNT }, (_, i) => `comedor${i + 1}`),
-];
+const FOTOS = {
+  fondo:       range(3,  "fondo"),
+  verano:      range(10, "verano"),
+  invierno:    range(6,  "invierno"),
+  experiencias:range(8,  "experiencias"),
+  evento:      range(7,  "evento"),
+  plato:       range(7,  "plato"),
+  estancia:    range(ESTANCIA_COUNT, "estancia"),
+} as const;
 
 /* ===================== Página ===================== */
 export default function EstanciaLanding() {
   const [lang, setLang] = useState<Lang>("es");
   const { t, ta, get } = useT(lang);
-const L = STRINGS[lang];
+  const L = STRINGS[lang];
 
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
@@ -392,65 +380,41 @@ const L = STRINGS[lang];
     return base + extra;
   }, [room, nights, guests]);
 
-const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-
-  if (!checkIn || !checkOut) {
-    toast.error(
-      <div>
-        <div className="font-semibold">Oops</div>
-        <div>{L.booking.total.needDates}</div>
-      </div>
-    );
-    return;
-  }
-
-  setSubmitting(true);
-  try {
-    const form = new FormData(e.currentTarget);
-    const payload = {
-      nombre: form.get("nombre"),
-      email: form.get("email"),
-      whatsapp: form.get("whatsapp"),
-      website: form.get("website"), // honeypot
-      checkIn,
-      checkOut,
-      guests,
-      roomId,
-      notes,
-      total,
-    };
-
-    const res = await fetch("/api/reserva", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      const txt = await res.text();
-      console.error("POST /api/reserva FAILED", res.status, txt);
-      toast.error(`Error ${res.status}: ${txt || "Bad response"}`);
-      setSubmitting(false);
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!checkIn || !checkOut) {
+      toast.error(<div><div className="font-semibold">Oops</div><div>{L.booking.total.needDates}</div></div>);
       return;
     }
-
-    toast(
-      <div>
-        <div className="font-semibold">OK</div>
-        <div>{lang === "es" ? "Solicitud enviada." : "Request sent."}</div>
-      </div>
-    );
-    // opcional: limpiar campos acá
-  } catch (err) {
-    console.error(err);
-    toast.error("Hubo un error. Probá de nuevo.");
-  } finally {
-    setSubmitting(false);
-  }
-};
-
-
+    setSubmitting(true);
+    try {
+      const form = new FormData(e.currentTarget);
+      const payload = {
+        nombre: form.get("nombre"),
+        email: form.get("email"),
+        whatsapp: form.get("whatsapp"),
+        website: form.get("website"),
+        checkIn, checkOut, guests, roomId, notes, total,
+      };
+      const res = await fetch("/api/reserva", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        toast.error(`Error ${res.status}: ${txt || "Bad response"}`);
+        setSubmitting(false);
+        return;
+      }
+      toast(<div><div className="font-semibold">OK</div><div>{lang === "es" ? "Solicitud enviada." : "Request sent."}</div></div>);
+    } catch (err) {
+      console.error(err);
+      toast.error("Hubo un error. Probá de nuevo.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const baseStr = currency(room.base);
   const extraStr = currency(Math.max(0, guests - 2) * 12000);
@@ -466,7 +430,6 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
             <Home className="size-6" />
             <span className="font-semibold tracking-tight">{t("site")}</span>
           </div>
-
           <nav className="hidden md:flex items-center gap-6 text-sm">
             <a href="#alojamiento" className="hover:underline">{t("nav.alojamiento")}</a>
             <a href="#experiencias" className="hover:underline">{t("nav.experiencias")}</a>
@@ -474,7 +437,6 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
             <a href="#como-llegar" className="hover:underline">{t("nav.como")}</a>
             <a href="#contacto" className="hover:underline">{t("nav.contacto")}</a>
           </nav>
-
           <div className="flex items-center gap-2">
             <button
               onClick={() => setLang(l => (l === "es" ? "en" : "es"))}
@@ -491,64 +453,37 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         </div>
       </header>
 
-{/* Hero con estancia1 de fondo */}
-<Image
-  src={heroImg}
-  alt="Estancia"
-  fill
-  sizes="100vw"
-  className="object-cover"
-  priority
-/>
-<section className="relative min-h-[60vh]">
-  {/* Fondo (imagen + velo) detrás */}
-  <div className="absolute inset-0 -z-10">
-    <Image
-      src="/fotos/estancia1.jpg"   // debe existir en /public/fotos/estancia1.jpg
-      alt="Estancia"
-      fill
-      className="object-cover"
-      priority
-    />
-    <div className="absolute inset-0 bg-[hsl(143_47%_24%/_0.45)]" />
-  </div>
-
-  {/* Contenido del hero por encima */}
-  <div className="relative z-10 mx-auto max-w-6xl px-4 py-24 md:py-40 text-white">
-    <motion.h1
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6 }}
-      className="text-4xl md:text-6xl font-semibold leading-tight"
-    >
-      {t("hero.title").split("\n").map((line, i) => (
-        <span key={i}>
-          {line}
-          {i === 0 && <br />}
-        </span>
-      ))}
-    </motion.h1>
-
-    <p className="mt-4 max-w-2xl text-lg md:text-xl text-white/90">
-      {t("hero.subtitle")}
-    </p>
-
-    <div className="mt-8 flex flex-col sm:flex-row gap-3">
-      <a href="#reservas">
-        <Button size="lg" className="rounded-2xl">{t("hero.cta.disponibilidad")}</Button>
-      </a>
-      <a href="#galeria">
-        <Button size="lg" variant="secondary" className="rounded-2xl">{t("hero.cta.galeria")}</Button>
-      </a>
-    </div>
-
-    <div className="mt-8 flex items-center gap-4 text-white/90">
-      <div className="flex items-center gap-1"><Star className="size-4 fill-white" /><span>4.9</span></div>
-      <div className="hidden md:flex items-center gap-2"><Users className="size-4" /> {t("hero.meta.guests", { n: 12 })}</div>
-      <div className="hidden md:flex items-center gap-2"><MapPin className="size-4" /> {t("hero.meta.location")}</div>
-    </div>
-  </div>
-</section>
+      {/* ===== HERO con carrusel de fondo (auto 2s) ===== */}
+      <section className="relative">
+        <HeroCarousel bases={FOTOS.fondo} alt="Fondo Estancia" autoMs={2000} />
+        <div className="absolute inset-0 flex items-center">
+          <div className="mx-auto max-w-6xl px-4 w-full">
+            <motion.h1
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="text-white text-4xl md:text-6xl font-semibold leading-tight"
+            >
+              {t("hero.title").split("\n").map((line, i) => (
+                <span key={i}>
+                  {line}
+                  {i === 0 && <br />}
+                </span>
+              ))}
+            </motion.h1>
+            <p className="mt-4 max-w-2xl text-lg md:text-xl text-white/90">{t("hero.subtitle")}</p>
+            <div className="mt-8 flex flex-col sm:flex-row gap-3">
+              <a href="#reservas"><Button size="lg" className="rounded-2xl">{t("hero.cta.disponibilidad")}</Button></a>
+              <a href="#galeria"><Button size="lg" variant="secondary" className="rounded-2xl">{t("hero.cta.galeria")}</Button></a>
+            </div>
+            <div className="mt-8 flex items-center gap-4 text-white/90">
+              <div className="flex items-center gap-1"><Star className="size-4 fill-white" /><span>4.9</span></div>
+              <div className="hidden md:flex items-center gap-2"><Users className="size-4" /> {t("hero.meta.guests", { n: 12 })}</div>
+              <div className="hidden md:flex items-center gap-2"><MapPin className="size-4" /> {t("hero.meta.location")}</div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Features */}
       <section className="mx-auto max-w-6xl px-4 py-12">
@@ -575,13 +510,10 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
             ? "Elegí tu espacio ideal. Las tarifas son por noche, base 2 personas."
             : "Choose your ideal space. Rates are per night, base 2 guests."}
         </p>
-
         <div className="mt-6 grid md:grid-cols-3 gap-6">
           {ROOMS.map(r => (
             <Card key={r.id} className="overflow-hidden rounded-2xl">
-              {/* Carrusel */}
               <Carousel bases={r.photos} alt={r.name} />
-
               <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold">{r.name}</h3>
@@ -590,21 +522,18 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
                     <div className="font-semibold">{currency(r.base)}</div>
                   </div>
                 </div>
-
                 {r.perks?.length ? (
-  <ul className="mt-3 text-sm text-neutral-600 list-disc pl-5 space-y-1">
-    {r.perks.map((p, i) => <li key={i}>{p}</li>)}
-  </ul>
-) : null}
-
+                  <ul className="mt-3 text-sm text-neutral-600 list-disc pl-5 space-y-1">
+                    {r.perks.map((p, i) => <li key={i}>{p}</li>)}
+                  </ul>
+                ) : null}
                 <div className="mt-4">
                   <Button
                     variant="secondary"
                     className="w-full rounded-xl"
                     onClick={() => {
                       setRoomId(r.id);
-                      const el = document.getElementById("reservas");
-                      if (el) el.scrollIntoView({ behavior: "smooth" });
+                      document.getElementById("reservas")?.scrollIntoView({ behavior: "smooth" });
                     }}
                   >
                     {t("rooms.elegir")}
@@ -621,16 +550,19 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         <div className="mx-auto max-w-6xl px-4 py-12">
           <h2 className="text-2xl md:text-3xl font-semibold">{t("sections.experiencias")}</h2>
           <div className="mt-6 grid md:grid-cols-3 gap-6">
-            {[{ icon: Sun, title: lang === "es" ? "Verano" : "Summer", desc: lang === "es" ? "Pileta, kayaks y atardeceres infinitos." : "Pool, kayaks and endless sunsets." },
-              { icon: Snowflake, title: lang === "es" ? "Invierno" : "Winter", desc: lang === "es" ? "Fogón, vinos y cielos estrellados." : "Bonfires, wine and starry skies." },
-              { icon: Sparkles, title: lang === "es" ? "Experiencias" : "Experiences", desc: lang === "es" ? "Clases de cocina, ordeñe y paseo en sulky." : "Cooking classes, milking and sulky rides." }].map((h, i) => (
-              <Card key={i} className="rounded-2xl">
+            {[
+              { icon: Sun,        title: lang === "es" ? "Verano" : "Summer",       desc: lang === "es" ? "Pileta, kayaks, recorridos en bicicleta y cuatriclico, atardeceres infinitos." : "Pool, kayaks, bike and ATV tours, endless sunsets.", fotos: FOTOS.verano },
+              { icon: Snowflake,  title: lang === "es" ? "Invierno" : "Winter",     desc: lang === "es" ? "Fogón, vinos, nieve y cielos estrellados." : "Bonfires, wine, snow and starry skies.",    fotos: FOTOS.invierno },
+              { icon: Sparkles,   title: lang === "es" ? "Experiencias" : "Experiences", desc: lang === "es" ? "Fauna local, platos exquisitos, campamentos y más!" : "Local wildlife, exquisite dishes, camping, and more!", fotos: FOTOS.experiencias },
+            ].map(({ icon: Icon, title, desc, fotos }, i) => (
+              <Card key={i} className="rounded-2xl overflow-hidden">
+                <Carousel bases={fotos} alt={title} aspect="aspect-[16/10]" />
                 <CardContent className="p-6">
                   <div className="flex items-center gap-3">
-                    <h.icon className="size-6" />
-                    <h3 className="text-lg font-semibold">{h.title}</h3>
+                    <Icon className="size-6" />
+                    <h3 className="text-lg font-semibold">{title}</h3>
                   </div>
-                  <p className="mt-2 text-neutral-600">{h.desc}</p>
+                  <p className="mt-2 text-neutral-600">{desc}</p>
                 </CardContent>
               </Card>
             ))}
@@ -642,29 +574,32 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
       <section className="bg-white border-y">
         <div className="mx-auto max-w-6xl px-4 py-12">
           <h2 className="text-2xl md:text-3xl font-semibold">{t("sections.instalaciones")}</h2>
-          <div className="mt-6 grid md:grid-cols-3 gap-6">
-            <Card className="rounded-2xl"><CardContent className="p-6"><h3 className="text-lg font-semibold">{lang === "es" ? "Sistema" : "System"}</h3><p className="text-neutral-700 mt-2 text-sm">{t("instalaciones.sistema")}</p></CardContent></Card>
-            <Card className="rounded-2xl"><CardContent className="p-6"><h3 className="text-lg font-semibold">{lang === "es" ? "Restaurante" : "Restaurant"}</h3><p className="text-neutral-700 mt-2 text-sm">{t("instalaciones.restaurant")}</p></CardContent></Card>
-            <Card className="rounded-2xl"><CardContent className="p-6"><h3 className="text-lg font-semibold">{lang === "es" ? "Casa de té" : "Tea house"}</h3><p className="text-neutral-700 mt-2 text-sm">{t("instalaciones.casaTe")}</p></CardContent></Card>
-          </div>
+        </div>
+        <div className="mx-auto max-w-6xl px-4 pb-12 grid md:grid-cols-3 gap-6">
+          <Card className="rounded-2xl"><CardContent className="p-6"><h3 className="text-lg font-semibold">{lang === "es" ? "Sistema" : "System"}</h3><p className="text-neutral-700 mt-2 text-sm">{t("instalaciones.sistema")}</p></CardContent></Card>
+          <Card className="rounded-2xl"><CardContent className="p-6"><h3 className="text-lg font-semibold">{lang === "es" ? "Restaurante" : "Restaurant"}</h3><p className="text-neutral-700 mt-2 text-sm">{t("instalaciones.restaurant")}</p></CardContent></Card>
+          <Card className="rounded-2xl"><CardContent className="p-6"><h3 className="text-lg font-semibold">{lang === "es" ? "Casa de té" : "Tea house"}</h3><p className="text-neutral-700 mt-2 text-sm">{t("instalaciones.casaTe")}</p></CardContent></Card>
         </div>
       </section>
 
-      {/* Actividades */}
+      {/* Gastronomía (Platos) */}
       <section className="mx-auto max-w-6xl px-4 py-12">
-        <h2 className="text-2xl md:text-3xl font-semibold">{t("sections.actividades")}</h2>
-        <ul className="mt-4 grid md:grid-cols-2 gap-2 text-neutral-700 list-disc pl-6">
-  {(ta("activities") || []).map((a: string, i: number) => (
-    <li key={i}>{a}</li>
-  ))}
-</ul>
+        <h2 className="text-2xl md:text-3xl font-semibold">{t("sections.platos")}</h2>
+        <p className="text-neutral-600 mt-2">{lang === "es" ? "Algunos de nuestros platos caseros." : "Some of our homemade dishes."}</p>
+        <div className="mt-6">
+          <Card className="rounded-2xl overflow-hidden">
+            <CardContent className="p-0">
+              <Carousel bases={FOTOS.plato} alt="Platos" aspect="aspect-[4/2]" />
+            </CardContent>
+          </Card>
+        </div>
       </section>
 
-      {/* Eventos */}
+      {/* Eventos con carrusel al costado */}
       <section className="bg-white border-y">
         <div className="mx-auto max-w-6xl px-4 py-12">
           <h2 className="text-2xl md:text-3xl font-semibold">{t("sections.eventos")}</h2>
-          <div className="mt-6 grid md:grid-cols-2 gap-6">
+          <div className="mt-6 grid md:grid-cols-3 gap-6">
             <Card className="rounded-2xl">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold">{t("eventosHead.emp")}</h3>
@@ -673,6 +608,7 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
                 </ul>
               </CardContent>
             </Card>
+
             <Card className="rounded-2xl">
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold">{t("eventosHead.soc")}</h3>
@@ -681,143 +617,41 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
                 </ul>
               </CardContent>
             </Card>
-          </div>
-        </div>
-      </section>
 
-      {/* Reservas */}
-      <section id="reservas" className="mx-auto max-w-6xl px-4 py-12">
-        <div className="grid lg:grid-cols-2 gap-8">
-          <Card className="rounded-2xl">
-            <CardContent className="p-6">
-              <h2 className="text-xl font-semibold">{t("booking.title")}</h2>
-              <p className="text-neutral-600 text-sm mt-1">{t("booking.subtitle")}</p>
-
-              <form onSubmit={handleSubmit} className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>{t("booking.labels.checkin")}</Label><Input type="date" value={checkIn} onChange={e => setCheckIn(e.target.value)} required /></div>
-                <div className="space-y-2"><Label>{t("booking.labels.checkout")}</Label><Input type="date" value={checkOut} onChange={e => setCheckOut(e.target.value)} required /></div>
-               <div className="space-y-2">
-  <Label>{t("booking.labels.guests")}</Label>
-  <Input
-    type="number"
-    min={1}
-    max={12}
-    value={guests}
-    onChange={e => setGuests(Math.max(1, Number(e.target.value || 1)))}
-  />
-</div>
-
-                <div className="space-y-2">
-                  <Label>{t("booking.labels.type")}</Label>
-                  <Select value={roomId} onValueChange={setRoomId}>
-                    <SelectTrigger className="w-full"><SelectValue placeholder={lang === "es" ? "Elegí una opción" : "Choose an option"} /></SelectTrigger>
-                    <SelectContent>
-                      {ROOMS.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>{t("booking.labels.notes")}</Label>
-                  <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder={t("booking.placeholders.notes")} />
-                </div>
-
-                {/* 👇 Pegar DENTRO del <form>, antes del bloque total/submit */}
-<div className="space-y-2">
-  <Label>Nombre</Label>
-  <Input name="nombre" required />
-</div>
-<div className="space-y-2">
-  <Label>Email</Label>
-  <Input name="email" type="email" required />
-</div>
-<div className="space-y-2">
-  <Label>WhatsApp (opcional)</Label>
-  <Input name="whatsapp" placeholder="+54 9 ..." />
-</div>
-
-{/* Honeypot anti-bots (oculto) */}
-<input
-  type="text"
-  name="website"
-  className="hidden"
-  tabIndex={-1}
-  autoComplete="off"
-/>
-
-{/* (opcional) pasar roomId también por form */}
-<input type="hidden" name="roomId" value={roomId ?? ""} />
-
-
-                <div className="md:col-span-2 flex items-center justify-between gap-4">
-  <div className="text-sm text-neutral-600">
-    {nights > 0 ? (
-      <>
-        <div>
-          {nights} {lang === "es" ? "noche(s)" : "night(s)"} · {room.name} · {guests} {lang === "es" ? "huésped(es)" : "guest(s)"}
-        </div>
-        <div className="font-medium">{t("booking.total.title")}: {currency(total)}</div>
-        <div className="text-xs">{L.booking.total.includes(baseStr, extraStr)}</div>
-      </>
-    ) : (
-      <div>{t("booking.total.needDates")}</div>
-    )}
-  </div> {/* 👈 Cierre que faltaba */}
-
-  <Button type="submit" size="lg" className="rounded-2xl min-w-48" disabled={submitting}>
-    {submitting ? (<><Loader2 className="size-4 animate-spin" /> {lang === "es" ? "Enviando…" : "Sending…"}</>) : (<>{t("booking.submit")} <ChevronRight className="size-4" /></>)}
-  </Button>
-</div>
-              </form>
-            </CardContent>
-          </Card>
-
-          {/* Info lateral */}
-          <div className="space-y-6">
-            <Card className="rounded-2xl">
-              <CardContent className="p-6">
-                <h3 className="text-lg font-semibold">{t("booking.stepsTitle")}</h3>
-                <ol className="mt-2 text-sm text-neutral-700 list-decimal pl-5 space-y-1">
-                  {(ta("booking.steps") || []).map((s, i) => (<li key={i}>{s}</li>))}
-                </ol>
-              </CardContent>
-            </Card>
-            <Card className="rounded-2xl">
-              <CardContent className="p-6">
-                <h3 className="text-lg font-semibold">{t("booking.incluye.title")}</h3>
-                <ul className="mt-2 text-sm text-neutral-700 list-disc pl-5 space-y-1">
-                  {(get("booking.incluye.items") as string[]).map((it, i) => (<li key={i}>{it}</li>))}
-                </ul>
-                <h3 className="text-lg font-semibold mt-4">{t("booking.noIncluye.title")}</h3>
-                <ul className="mt-2 text-sm text-neutral-700 list-disc pl-5 space-y-1">
-                  {(get("booking.noIncluye.items") as string[]).map((it, i) => (<li key={i}>{it}</li>))}
-                </ul>
-              </CardContent>
-            </Card>
-            <Card className="rounded-2xl">
-              <CardContent className="p-6">
-                <h3 className="text-lg font-semibold">{t("booking.contactoDirecto.title")}</h3>
-                <div className="mt-3 space-y-2 text-sm">
-                  <a className="flex items-center gap-2 hover:underline" href="tel:+5491112345678"><Phone className="size-4" /> +54 9 11 1234-5678</a>
-                  <a className="flex items-center gap-2 hover:underline" href="mailto:hola@estancialalaguna.com"><Mail className="size-4" /> hola@estancialalaguna.com</a>
-                  <div className="flex items-center gap-2 text-neutral-600"><Clock className="size-4" /> {t("booking.contactoDirecto.horario")}</div>
-                  <div className="text-neutral-600">{t("booking.contactoDirecto.nota")}</div>
-                </div>
+            {/* 👉 carrusel a la derecha con tus fotos de eventos */}
+            <Card className="rounded-2xl overflow-hidden md:row-span-1">
+              <CardContent className="p-0">
+                <Carousel bases={FOTOS.evento} alt="Eventos" aspect="aspect-[16/12]" />
               </CardContent>
             </Card>
           </div>
         </div>
       </section>
 
-      {/* Galería */}
+      {/* Actividades (texto) */}
+      <section className="mx-auto max-w-6xl px-4 py-12">
+        <h2 className="text-2xl md:text-3xl font-semibold">{t("sections.actividades")}</h2>
+        <ul className="mt-4 grid md:grid-cols-2 gap-2 text-neutral-700 list-disc pl-6">
+          {(ta("activities") || []).map((a: string, i: number) => <li key={i}>{a}</li>)}
+        </ul>
+      </section>
+
+      {/* ===================== GALERÍA (SOLO ESTANCIA) ===================== */}
       <section id="galeria" className="bg-white border-t">
         <div className="mx-auto max-w-6xl px-4 py-12">
           <h2 className="text-2xl md:text-3xl font-semibold">{t("sections.galeria")}</h2>
-          <div className="mt-6 grid sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {PHOTO_BASENAMES.map((base) => (
-              <div key={base} className="h-56 sm:h-64 md:h-72 lg:h-80 overflow-hidden rounded-2xl">
-                <GalleryImage base={base} />
-              </div>
-            ))}
+          <div className="mt-6 grid grid-cols-1 gap-8">
+            <Card className="rounded-2xl overflow-hidden">
+              <CardContent className="p-0">
+                <Carousel bases={FOTOS.estancia} alt="Estancia" aspect="aspect-[12/6]" />
+                <div className="p-5">
+                  <h3 className="text-lg font-semibold">Estancia</h3>
+                  <p className="text-sm text-neutral-600 mt-1">
+                    {lang === "es" ? "Postales generales de la estancia." : "General views of the ranch."}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
@@ -850,25 +684,23 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
       <section className="bg-white border-y">
         <div className="mx-auto max-w-6xl px-4 py-12">
           <h2 className="text-2xl md:text-3xl font-semibold">{t("testimonials.title")}</h2>
-          <div className="mt-6 grid md:grid-cols-3 gap-6">
-  {(ta("testimonials.items") || []).map((txt: string, i: number) => (
-    <Card key={i} className="rounded-2xl">
-      <CardContent className="p-6">
-        <div className="flex gap-1 text-amber-500">
-          <Star className="size-4 fill-amber-500" />
-          <Star className="size-4 fill-amber-500" />
-          <Star className="size-4 fill-amber-500" />
-          <Star className="size-4 fill-amber-500" />
-          <Star className="size-4 fill-amber-500" />
         </div>
-        <p className="mt-3">“{txt}”</p>
-        <p className="mt-1 text-sm text-neutral-600">
-          — {lang === "es" ? "Huésped verificado" : "Verified guest"}
-        </p>
-      </CardContent>
-    </Card>
-  ))}
-</div>
+        <div className="mx-auto max-w-6xl px-4 pb-12 grid md:grid-cols-3 gap-6">
+          {(ta("testimonials.items") || []).map((txt: string, i: number) => (
+            <Card key={i} className="rounded-2xl">
+              <CardContent className="p-6">
+                <div className="flex gap-1 text-amber-500">
+                  <Star className="size-4 fill-amber-500" />
+                  <Star className="size-4 fill-amber-500" />
+                  <Star className="size-4 fill-amber-500" />
+                  <Star className="size-4 fill-amber-500" />
+                  <Star className="size-4 fill-amber-500" />
+                </div>
+                <p className="mt-3">“{txt}”</p>
+                <p className="mt-1 text-sm text-neutral-600">— {lang === "es" ? "Huésped verificado" : "Verified guest"}</p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </section>
 
@@ -879,8 +711,8 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         <div className="mt-6 grid md:grid-cols-2 gap-6">
           <Card className="rounded-2xl">
             <CardContent className="p-6">
-              <div className="flex items-center gap-2"><Phone className="size-5" /> <span>+54 9 11 1234-5678</span></div>
-              <div className="flex items-center gap-2 mt-2"><Mail className="size-5" /> <span>hola@estancialalaguna.com</span></div>
+              <div className="flex items-center gap-2"><Phone className="size-5" /> <span>+54 9 2392 440994</span></div>
+              <div className="flex items-center gap-2 mt-2"><Mail className="size-5" /> <span>estancialamorena0@gmail.com</span></div>
               <p className="text-sm text-neutral-600 mt-3">{lang === "es" ? "También atendemos por Instagram y WhatsApp." : "We also reply via Instagram and WhatsApp."}</p>
             </CardContent>
           </Card>
