@@ -986,7 +986,7 @@ export default function EstanciaLanding() {
               <a className="hover:underline" href="#como-llegar">{L.footer.como}</a>
               <a className="hover:underline" href="#contacto">{L.footer.contacto}</a>
               <a
-                href="https://instagram.com/tuusuario"
+                href="https://www.instagram.com/lamorenaestancia?igsh=MWt3aThzOTZiZGtrcw=="
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 hover:opacity-80"
@@ -996,7 +996,7 @@ export default function EstanciaLanding() {
                 <Instagram className="size-4" /> Instagram
               </a>
               <a
-                href="https://facebook.com/tuusuario"
+                href="https://www.facebook.com/profile.php?id=100063451578741&locale=es_LA"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 hover:opacity-80"
